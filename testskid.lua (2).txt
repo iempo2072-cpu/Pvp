@@ -1,0 +1,1568 @@
+if not (game.PlaceId == 104715542330896 or game.PlaceId == 97556409405464) then return end
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local TeleportService = game:GetService("TeleportService")
+local PathfindingService = game:GetService("PathfindingService")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+local Client = LocalPlayer
+local Character = Client.Character or Client.CharacterAdded:Wait()
+local UserId = Client.UserId
+local PlayerGui = Client.PlayerGui
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Backpack = Client:WaitForChild("Backpack")
+
+Client.CharacterAdded:Connect(function(newCharacter)
+    Character = newCharacter
+    Humanoid = Character:WaitForChild("Humanoid")
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+    Backpack = Client:WaitForChild("Backpack")
+end)
+
+for _, obj in pairs(workspace:GetDescendants()) do
+    if obj:IsA("Model") and obj.Name == "DoorSystem" then obj:Destroy() end
+end
+
+pcall(function()
+    local TransitionModule = require(ReplicatedStorage.Modules.Game.UI.TransitionUI)
+    TransitionModule.transition = function() return end
+end)
+
+pcall(function()
+    local CharCreator = require(ReplicatedStorage.Modules.Game.CharacterCreator.CharacterCreator)
+    if CharCreator.start then CharCreator.start = function(...) while true do task.wait(1) end end end
+end)
+
+if getgenv then getgenv().identifyexecutor = nil end
+if getfenv then getfenv().identifyexecutor = nil end
+
+local v_u_1 = {}
+local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
+local v_u_3 = { ["send"] = v2:WaitForChild("Send"), ["get"] = v2:WaitForChild("Get") }
+local v_u_4 = {["event"] = 0, ["func"] = 0}
+local v_u_5 = {}
+local v_u_6 = false
+local v_u_7 = {}
+function v_u_1.on_connect(p8) if v_u_6 then p8() else v_u_7[#v_u_7 + 1] = p8 end end
+function v_u_1.hook(p_u_9, p_u_10)
+    if not p_u_10 then error("Function nil for hook") end
+    if v_u_6 then
+        if v_u_5[p_u_9] then warn("Overwriting hook") else v_u_5[p_u_9] = p_u_10 end
+    else
+        v_u_1.on_connect(function() v_u_1.hook(p_u_9, p_u_10) end)
+        return
+    end
+end
+function v_u_1.is_connected(p11) return p11:GetAttribute("IsConnected") and true or false end
+task.wait(0.1)
+local v_u_20 = v_u_3.send
+local v_u_21 = v_u_3.send.FireServer
+function v_u_1.send(p22, ...) v_u_4.event = v_u_4.event + 1 v_u_21(v_u_20, v_u_4.event, p22, ...) end
+local v_u_23 = v_u_3.get
+local v_u_24 = v_u_3.get.InvokeServer
+function v_u_1.get(p25, ...) v_u_4.func = v_u_4.func + 1 return v_u_24(v_u_23, v_u_4.func, p25, ...) end
+task.wait(0.1)
+local function v_u_29()
+    v_u_3.send.OnClientEvent:connect(function(p26, ...)
+        if v_u_5[p26] then v_u_5[p26](...) end
+    end)
+    function v_u_3.get.OnClientInvoke(p27, ...) if v_u_5[p27] then return v_u_5[p27](...) end end
+    if not pcall(function() for v28 = 1, #v_u_7 do v_u_7[v28]() end end) then pcall(function() v_u_1.send("issue", "On connect failed") end) end
+end
+function v_u_1.initiate() end
+function v_u_1.loaded()
+    function v_u_3.get.OnClientInvoke(p30) if p30 == "connect" then v_u_6 = true v_u_29() return true end end
+    v_u_1.hook("ping", function() return true end)
+end
+print("bypassed")
+
+local function ModifyATMPrompts()
+    local m = workspace:FindFirstChild("Map")
+    if not m then return end
+    local p = m:FindFirstChild("Props")
+    if not p then return end
+    local a = p:FindFirstChild("ATMs")
+    if not a then return end
+    for _, d in pairs(a:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then d.MaxActivationDistance = 22 end
+    end
+end
+pcall(ModifyATMPrompts)
+
+local SendRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
+local oldFireServer
+oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+    local args = {...}
+    if args[2] == "crashed_car" then return nil end
+    return oldFireServer(self, ...)
+end)
+
+local VehiclesFolder = workspace:WaitForChild("Vehicles")
+local protectedVehicles = {}
+local function updateVehicleList()
+    protectedVehicles = {}
+    for _, model in ipairs(VehiclesFolder:GetDescendants()) do
+        if model:IsA("VehicleSeat") and model.Name == "DriverSeat" then
+            local vehicle = model:FindFirstAncestorOfClass("Model")
+            if vehicle then protectedVehicles[vehicle] = true end
+        end
+    end
+end
+updateVehicleList()
+local function isProtectedSeat(seat) local v = seat:FindFirstAncestorOfClass("Model") return v and protectedVehicles[v] == true end
+for _, seat in ipairs(workspace:GetDescendants()) do
+    if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
+        if not isProtectedSeat(seat) then seat:Destroy() end
+    end
+end
+VehiclesFolder.DescendantAdded:Connect(function(obj)
+    if obj:IsA("VehicleSeat") and obj.Name == "DriverSeat" then updateVehicleList() end
+end)
+
+local SafeZoneFilterList = {}
+local function DisableSafeZoneIndicators()
+    local map = workspace:FindFirstChild("Map")
+    if not map then return end
+    local szi = map:FindFirstChild("SafeZoneIndicators")
+    if not szi then return end
+    SafeZoneFilterList = {}
+    for _, sz in ipairs(szi:GetChildren()) do
+        table.insert(SafeZoneFilterList, sz)
+        for _, part in ipairs(sz:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
+                table.insert(SafeZoneFilterList, part)
+            end
+        end
+    end
+end
+pcall(DisableSafeZoneIndicators)
+
+local function getRaycastFilter(extra)
+    local filter = {Character}
+    for _, obj in ipairs(SafeZoneFilterList) do table.insert(filter, obj) end
+    if extra then for _, obj in ipairs(extra) do table.insert(filter, obj) end end
+    return filter
+end
+
+local SliderMinigame = require(ReplicatedStorage.Modules.Game.Minigames.SliderMinigame)
+local SliderConstants = require(ReplicatedStorage.Modules.Game.Minigames.SliderConstants)
+
+getgenv().SliderSession = { id = nil, kind = nil, version = nil, active = false }
+
+SendRemote.OnClientEvent:Connect(function(name, a1, a2, a3, a4, a5, a6, a7, a8)
+    if name == "minigame_open" then
+        getgenv().SliderSession.id = a1
+        getgenv().SliderSession.kind = a2
+        getgenv().SliderSession.version = a8
+        getgenv().SliderSession.active = true
+    elseif name == "minigame_level" then
+        if getgenv().SliderSession.id == a1 then
+            pcall(function()
+                SliderMinigame.level.set(a2)
+                SliderMinigame.target_pos.set(a3)
+                SliderMinigame.target_size.set(a4)
+                SliderMinigame.tries.set(a5)
+            end)
+        end
+    elseif name == "minigame_result" then
+        if getgenv().SliderSession.id == a1 then
+            getgenv().SliderSession.id = nil
+            getgenv().SliderSession.active = false
+        end
+    end
+end)
+
+local lastClick = 0
+local aw_conn = nil
+local function inTarget(n)
+    local tp = SliderMinigame.target_pos.get()
+    local ts = SliderMinigame.target_size.get()
+    local len = SliderConstants.LENIENCE or 0.05
+    if not tp or tp == 0 then return false end
+    local h = ts / 2
+    return n >= tp - h - len and n <= tp + h + len
+end
+local function fire()
+    local s = getgenv().SliderSession
+    if not s or not s.id or not s.active then return end
+    if os.clock() - lastClick < 1.5 then return end
+    local lvl = SliderMinigame.level.get()
+    local pos = SliderMinigame.needle_pos.get()
+    local t = workspace:GetServerTimeNow()
+    pcall(function() Net.send("minigame_click", s.id, lvl, pos, t, s.version or 1) end)
+    lastClick = os.clock()
+end
+local function startAW()
+    if aw_conn then return end
+    aw_conn = RunService.RenderStepped:Connect(function()
+        local s = getgenv().SliderSession
+        if not s or not s.active then return end
+        if SliderMinigame.level.get() == 0 then return end
+        if inTarget(SliderMinigame.needle_pos.get()) then fire() end
+    end)
+end
+local function stopAW()
+    if aw_conn then aw_conn:Disconnect() aw_conn = nil end
+end
+pcall(function()
+    SliderMinigame.enabled.hook(function(v)
+        if v then startAW() else stopAW() end
+    end)
+end)
+startAW()
+
+local Config = {
+    WalkingSpeed = 25,
+    BikeSpeed = 25,
+    CarSpeed = 45,
+    AutoFarmFishing = false,
+    FishingRod = "Smart Select",
+    FishingWormtec = "Smart Select",
+    FishingBaitAmount = 15,
+    FishingTravelType = "Bike",
+    StopWalking = false,
+    Running = false,
+    FishingUnderground = true,
+    FarmUndergroundDepth = 55,
+    WheelieEnabled = true,
+    WheelieOnlyBike = true,
+    WheelieAngle = 15,
+}
+
+local Status = { State = "Idle", Fish = 0, Money = 0, Bank = 0, Baits = 0 }
+local fishingBaseplate = nil
+local BusyWalk = false
+local FishingThread = nil
+local LastKillTime = 0
+local ActiveFishingVehicle = nil
+local LastVehicleLockTime = 0
+local VEHICLE_LOCK_INTERVAL = 120
+
+local POS = {
+    ATM = Vector3.new(179.200882, 255.290543, -236.355896),
+    BikeBuy = Vector3.new(228, 255, -249),
+    Shop = Vector3.new(-136.406662, 254.851074, 153.555588),
+    Sell = Vector3.new(-252, 256, 380),
+    FishLowLevelWalkDrop = Vector3.new(110, 247, -742),
+    SafeY = 255,
+}
+
+local FishingSpots = {
+    {minLevel = 70, position = Vector3.new(52, 240, 683), throwPos = Vector3.new(75.31918334960938, 238.35333251953125, 919.7421264648438)},
+    {minLevel = 40, position = Vector3.new(-431, 240, 690), throwPos = Vector3.new(-457.95330810546875, 245.671875, 939.3677978515625)},
+    {minLevel = 10, position = Vector3.new(546, 244, -773), throwPos = Vector3.new(611.79248046875, 249.84375, -885.515625)},
+    {minLevel = 1, position = Vector3.new(113, 245, -745), throwPos = Vector3.new(183.10549926757812, 249.84375, -761.474365234375)},
+}
+
+local Sf = {}
+local function distTo(pos) return (pos - RootPart.Position).Magnitude end
+local function shouldStop() return not (Config.AutoFarmFishing or BusyWalk) end
+local function shouldContinue(value) 
+    if value == false then return false end
+    return Config.AutoFarmFishing or BusyWalk
+end
+
+local pathParts = {}
+function ClearPathLines()
+    for _, part in ipairs(pathParts) do
+        if part and part.Parent then part:Destroy() end
+    end
+    pathParts = {}
+end
+
+local jumpVisuals = {}
+function ClearJumpVisuals()
+    for _, v in ipairs(jumpVisuals) do
+        if v and v.Parent then v:Destroy() end
+    end
+    jumpVisuals = {}
+end
+
+local function CreateJumpCircle(position)
+    local circle = Instance.new("Part")
+    circle.Name = "JumpCircle"
+    circle.Shape = Enum.PartType.Cylinder
+    circle.Size = Vector3.new(0.3, 7, 7)
+    circle.Anchored = true
+    circle.CanCollide = false
+    circle.CanTouch = false
+    circle.CanQuery = false
+    circle.Material = Enum.Material.Neon
+    circle.BrickColor = BrickColor.new("Lime green")
+    circle.Transparency = 0.3
+    circle.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
+    circle.Parent = workspace
+    table.insert(jumpVisuals, circle)
+    
+    local innerCircle = Instance.new("Part")
+    innerCircle.Name = "JumpCircleInner"
+    innerCircle.Shape = Enum.PartType.Cylinder
+    innerCircle.Size = Vector3.new(0.4, 3, 3)
+    innerCircle.Anchored = true
+    innerCircle.CanCollide = false
+    innerCircle.CanTouch = false
+    innerCircle.CanQuery = false
+    innerCircle.Material = Enum.Material.Neon
+    innerCircle.BrickColor = BrickColor.new("Cyan")
+    innerCircle.Transparency = 0.5
+    innerCircle.CFrame = CFrame.new(position + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90))
+    innerCircle.Parent = workspace
+    table.insert(jumpVisuals, innerCircle)
+    
+    task.spawn(function()
+        for i = 1, 8 do
+            if not circle.Parent then break end
+            local size = 7 + i * 1.5
+            circle.Size = Vector3.new(0.3, size, size)
+            circle.Transparency = 0.3 + (i * 0.08)
+            innerCircle.Size = Vector3.new(0.4, 3 + i * 0.5, 3 + i * 0.5)
+            innerCircle.Transparency = 0.5 + (i * 0.06)
+            task.wait(0.08)
+        end
+        if circle.Parent then circle:Destroy() end
+        if innerCircle.Parent then innerCircle:Destroy() end
+    end)
+    return circle
+end
+
+local function DrawPath(waypoints)
+    ClearPathLines()
+    if not waypoints or #waypoints < 2 then return end
+    for i = 1, #waypoints - 1 do
+        local p1 = waypoints[i].Position
+        local p2 = waypoints[i+1].Position
+        local dist = (p2 - p1).Magnitude
+        if dist > 0.5 then
+            local mid = (p1 + p2) / 2
+            local dir = (p2 - p1).Unit
+            local part = Instance.new("Part")
+            part.Size = Vector3.new(0.4, 0.4, dist)
+            part.CFrame = CFrame.lookAt(mid, mid + dir)
+            part.Anchored = true
+            part.CanCollide = false
+            part.Material = Enum.Material.Neon
+            part.BrickColor = BrickColor.new("Bright blue")
+            part.Transparency = 0.25
+            part.Parent = workspace
+            table.insert(pathParts, part)
+        end
+    end
+end
+
+function Sf:ForceStop()
+    Config.StopWalking = true
+    Config.Running = false
+    ClearPathLines()
+    ClearJumpVisuals()
+    task.wait(0.05)
+    Config.StopWalking = false
+end
+
+function Sf:KillSelf()
+    if tick() - LastKillTime < 15 then
+        return
+    end
+    LastKillTime = tick()
+    task.wait(6)
+    pcall(function() Net.get("request_respawn") end)
+    task.wait(0.5)
+    pcall(function()
+        local char = Client.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
+        end
+    end)
+end
+
+function Sf:HandleDeathScreen()
+    local DeathScreen = PlayerGui:FindFirstChild("DeathScreen")
+    if not DeathScreen then return false end
+    local Holder = DeathScreen:FindFirstChild("DeathScreenHolder")
+    if not Holder then return false end
+    if not Holder.Visible then return false end
+    local Frame = Holder:FindFirstChild("Frame")
+    if not Frame then return false end
+    local RespawnButtonFrame = Frame:FindFirstChild("RespawnButtonFrame")
+    if not RespawnButtonFrame then return false end
+    local RespawnButton = RespawnButtonFrame:FindFirstChild("RespawnButton")
+    if not RespawnButton then return false end
+    local TextLabel = RespawnButton:FindFirstChild("TextLabel")
+    if not TextLabel then return false end
+    
+    local text = TextLabel.Text
+    if text == "Respawn" then
+        print("[Death] Respawn-Button aktiv -> drücke")
+        pcall(function() Net.send("death_screen_request_respawn") end)
+        task.wait(0.5)
+        return true
+    else
+        print("[Death] Countdown: " .. tostring(text))
+        return false
+    end
+end
+
+function Sf:LockOwnVehicle(force)
+    local now = tick()
+    if not force and (now - LastVehicleLockTime) < VEHICLE_LOCK_INTERVAL then
+        return
+    end
+    for _, vehicle in pairs(workspace.Vehicles:GetChildren()) do
+        if vehicle:IsA("Model") and vehicle:GetAttribute("OwnerUserId") == UserId then
+            local locked = vehicle:GetAttribute("IsLocked")
+            if locked ~= true then
+                print("[Lock] Sperre Fahrzeug:", vehicle.Name)
+                pcall(function() Net.send("lock_vehicle", vehicle, 2) end)
+                LastVehicleLockTime = now
+            else
+                LastVehicleLockTime = now
+            end
+            return
+        end
+    end
+end
+
+function Sf:TeleportUpIfNeeded()
+    if not RootPart then return end
+    local currentY = RootPart.Position.Y
+    if currentY < 200 then
+        RootPart.CFrame = CFrame.new(RootPart.Position.X, POS.SafeY, RootPart.Position.Z)
+        task.wait(0.5)
+    end
+end
+
+function Sf:GetMoney()
+    local ok, r = pcall(function()
+        local raw = PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.Text
+        local s = raw:match("%$([%d,]+)")
+        if not s then return 0 end
+        return tonumber((s:gsub(",", ""))) or 0
+    end)
+    return ok and r or 0
+end
+
+function Sf:ATMMoney()
+    for _, v in ipairs(PlayerGui:GetDescendants()) do
+        if v:IsA("TextLabel") and string.find(v.Text, "Bank Balance") then
+            return tonumber(v.Text:match("%$(%d+)")) or 0
+        end
+    end
+    return 0
+end
+
+function Sf:GetLevel()
+    local Skills = PlayerGui:FindFirstChild("Skills")
+    if not Skills then return 1 end
+    local LC = Skills:FindFirstChild("SkillsHolder") and
+        Skills.SkillsHolder:FindFirstChild("SkillsScrollingFrame") and
+        Skills.SkillsHolder.SkillsScrollingFrame:FindFirstChild("PlayerCard") and
+        Skills.SkillsHolder.SkillsScrollingFrame.PlayerCard:FindFirstChild("SkillPlayerViewport") and
+        Skills.SkillsHolder.SkillsScrollingFrame.PlayerCard.SkillPlayerViewport:FindFirstChild("Frame") and
+        Skills.SkillsHolder.SkillsScrollingFrame.PlayerCard.SkillPlayerViewport.Frame:FindFirstChild("ViewportSkillLevelCard") and
+        Skills.SkillsHolder.SkillsScrollingFrame.PlayerCard.SkillPlayerViewport.Frame.ViewportSkillLevelCard:FindFirstChild("TextLabel")
+    if not LC then return 1 end
+    return tonumber(LC.Text:match("%d+")) or 1
+end
+
+function Sf:GetSkill(skillname)
+    local OptionsSkill = PlayerGui:FindFirstChild('Skills')
+    if not OptionsSkill then return 0 end
+    local Holder = OptionsSkill:FindFirstChild('SkillsHolder')
+    if not Holder then return 0 end
+    local Sc = Holder:FindFirstChild('SkillsScrollingFrame')
+    if not Sc then return 0 end
+    for _, v in pairs(Sc:GetChildren()) do
+        if v.Name == "SkillOptionTemplate" then
+            local title = v:FindFirstChild('SkillTitle')
+            if title and string.find(title.Text, skillname) then
+                return tonumber(title.Text:match("%d+")) or 0
+            end
+        end
+    end
+    return 0
+end
+
+function Sf:GetInfo(w)
+    local amount, IsHaving, Uid, Using, Drowning = 0, false, nil, false, false
+    local Items = PlayerGui:FindFirstChild("Items")
+    if not Items then return {0, false, nil, false, false} end
+    local holder = Items:FindFirstChild("ItemsHolder")
+    if not holder then return {0, false, nil, false, false} end
+    local Holding = holder:FindFirstChild("ItemsScrollingFrame")
+    if not Holding then return {0, false, nil, false, false} end
+    for _, v in pairs(Holding:GetChildren()) do
+        if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+            local itemName = v:FindFirstChild("ItemName")
+            if itemName and itemName.Text == w then
+                Uid = v.Name
+                amount = amount + 1
+                IsHaving = true
+                local eq = v:FindFirstChild('ItemEquipped')
+                local di = v:FindFirstChild('DestroyedItemIcon')
+                Using = eq and eq.Visible or false
+                Drowning = di and di.Visible or false
+            end
+        end
+    end
+    return {amount, IsHaving, Uid, Using, Drowning}
+end
+
+function Sf:GetCarFromType(types)
+    local Items = PlayerGui:FindFirstChild("Items")
+    if not Items then return nil end
+    local holder = Items:FindFirstChild("ItemsHolder")
+    if not holder then return nil end
+    local Sc = holder:FindFirstChild("ItemsScrollingFrame")
+    if not Sc then return nil end
+    if types == "Bike" then
+        for _, v in ipairs(Sc:GetChildren()) do
+            if v:GetAttribute("ItemType") == "bike" then
+                return v.ItemName.Text == "BMX" and "BMX" or v.ItemName.Text
+            end
+        end
+    else
+        for _, v in ipairs(Sc:GetChildren()) do
+            if v:GetAttribute('ItemType') == "car" then return v.ItemName.Text end
+        end
+    end
+    return nil
+end
+
+function Sf:ResolveRodName()
+    if Config.FishingRod ~= "Smart Select" then return Config.FishingRod end
+    local level = Sf:GetSkill("Fishing")
+    if level <= 0 then level = Sf:GetLevel() end
+    if level >= 60 then return "FishingRodUltimate"
+    elseif level >= 35 then return "FishingRodAdvanced"
+    elseif level >= 20 then return "FishingRodPro"
+    else return "FishingRodRegular" end
+end
+
+function Sf:ResolveBaitName()
+    if Config.FishingWormtec ~= "Smart Select" then return Config.FishingWormtec end
+    local level = Sf:GetSkill("Fishing")
+    if level <= 0 then level = Sf:GetLevel() end
+    if level >= 45 then return "PrawntecUltimate"
+    elseif level >= 30 then return "PrawntecPro"
+    elseif level >= 25 then return "PrawntecRegular"
+    elseif level >= 15 then return "WormtecUltimate"
+    elseif level >= 8 then return "WormtecPro"
+    else return "WormtecRegular" end
+end
+
+function Sf:GetFishingSpot()
+    local fishingLevel = Sf:GetSkill("Fishing")
+    if fishingLevel <= 0 then
+        fishingLevel = Sf:GetLevel()
+    end
+    print("[Fishing Spot] Fishing Level:", fishingLevel)
+    for _, spot in ipairs(FishingSpots) do
+        if fishingLevel >= spot.minLevel then
+            return spot.position, spot.throwPos, spot.minLevel
+        end
+    end
+    return FishingSpots[#FishingSpots].position, FishingSpots[#FishingSpots].throwPos, 1
+end
+
+function Sf:CountBaits()
+    local total = 0
+    local Items = PlayerGui:FindFirstChild("Items")
+    if Items then
+        local holder = Items:FindFirstChild("ItemsHolder")
+        if holder then
+            local Sc = holder:FindFirstChild("ItemsScrollingFrame")
+            if Sc then
+                for _, v in pairs(Sc:GetChildren()) do
+                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+                        local itemName = v:FindFirstChild("ItemName")
+                        if itemName and itemName.Text then
+                            local t = string.lower(itemName.Text)
+                            if string.find(t, "wormtec") or string.find(t, "prawntec") then
+                                local destroyedIcon = v:FindFirstChild("DestroyedItemIcon")
+                                local isDestroyed = destroyedIcon and destroyedIcon.Visible
+                                local isVisible = v.Visible
+                                
+                                if not isDestroyed and isVisible then
+                                    local countLabel = v:FindFirstChild("ItemCount")
+                                    if countLabel and countLabel:IsA("TextLabel") then
+                                        local num = tonumber(countLabel.Text:match("%d+"))
+                                        if num and num > 0 then
+                                            total = total + num
+                                        end
+                                    else
+                                        total = total + 1
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local hotbar = PlayerGui:FindFirstChild("Hotbar")
+    if hotbar then
+        for _, frame in ipairs(hotbar:GetDescendants()) do
+            if frame.Name == "Ammo" and frame:IsA("TextLabel") then
+                local num = tonumber(frame.Text:match("(%d+)/"))
+                if num and num > 0 then
+                    total = total + num
+                end
+            end
+        end
+    end
+    return total
+end
+
+function CountFish()
+    local count = 0
+    local Items = PlayerGui:FindFirstChild("Items")
+    if Items then
+        local H = Items:FindFirstChild("ItemsHolder") and Items.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+        if H then
+            for _, v in pairs(H:GetChildren()) do
+                if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+                    local itemType = v:GetAttribute("ItemType")
+                    if itemType == "fish" then
+                        local destroyedIcon = v:FindFirstChild("DestroyedItemIcon")
+                        local isDestroyed = destroyedIcon and destroyedIcon.Visible
+                        if not isDestroyed then
+                            local countLabel = v:FindFirstChild("ItemCount")
+                            if countLabel and countLabel:IsA("TextLabel") then
+                                local num = tonumber(countLabel.Text:match("%d+"))
+                                if num and num > 0 then
+                                    count = count + num
+                                else
+                                    count = count + 1
+                                end
+                            else
+                                count = count + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
+function Sf:EnsureRodEquipped(actualRodName)
+    local char = Client.Character
+    if not char then return nil end
+    for attempt = 1, 5 do
+        local rodInHand = char:FindFirstChild(actualRodName)
+        if rodInHand then return rodInHand end
+        local bp = Client:FindFirstChild("Backpack")
+        if bp then
+            local tool = bp:FindFirstChild(actualRodName)
+            if tool then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    pcall(function() hum:EquipTool(tool) end)
+                    task.wait(0.3)
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+    return char:FindFirstChild(actualRodName)
+end
+
+function Sf:WalkTo(targetPos, timeout)
+    if not targetPos then return false end
+    if not Character or not Character.Parent then
+        Character = Client.Character or Client.CharacterAdded:Wait()
+        Humanoid = Character:WaitForChild("Humanoid")
+        RootPart = Character:WaitForChild("HumanoidRootPart")
+    end
+    Config.StopWalking = false
+    Config.Running = true
+    local Root = Character:WaitForChild("HumanoidRootPart")
+    local Hum = Character:WaitForChild("Humanoid")
+
+    local path = PathfindingService:CreatePath({
+        AgentCanJump = true, AgentJumpHeight = 7.2, AgentHeight = 5,
+        AgentRadius = 2, AgentMaxSlope = 50, WaypointSpacing = 4,
+        Costs = {BlockedNode = 100, DoorArea = 1}
+    })
+    local ok = pcall(function() path:ComputeAsync(Root.Position, targetPos) end)
+
+    if not ok or path.Status ~= Enum.PathStatus.Success then
+        warn("[Walk] Pathfinder Error:", tostring(path.Status))
+        Config.Running = false
+        ClearPathLines()
+        Sf:KillSelf()
+        return false
+    end
+
+    local waypoints = path:GetWaypoints()
+    DrawPath(waypoints)
+
+    for _, wp in ipairs(waypoints) do
+        if shouldStop() then break end
+        local target = wp.Position + Vector3.new(0, 3, 0)
+        local startTime = tick()
+        while (Root.Position - target).Magnitude > 1.5 do
+            if shouldStop() then break end
+            if tick() - startTime > 10 then break end
+            local currentSpeed = Config.WalkingSpeed
+            task.wait(0.03)
+            if shouldStop() then break end
+            local curPos = Root.Position
+            local delta = target - curPos
+            local remaining = delta.Magnitude
+            local step = math.min(currentSpeed * 0.03, remaining)
+            Root:PivotTo(CFrame.new(curPos + delta.Unit * step))
+            Net.send("set_sprinting_1", true)
+        end
+
+        if wp.Action == Enum.PathWaypointAction.Jump then
+            local jumpPos = Vector3.new(wp.Position.X, wp.Position.Y, wp.Position.Z)
+            CreateJumpCircle(jumpPos)
+            task.wait(0.1)
+            Hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            task.wait(0.15)
+            if Hum.FloorMaterial == Enum.Material.Air then
+                Hum.Jump = true
+            end
+            local landTimeout = tick() + 1.5
+            while Hum.FloorMaterial == Enum.Material.Air and tick() < landTimeout do
+                task.wait(0.05)
+            end
+            task.wait(0.1)
+        end
+        if shouldStop() then break end
+    end
+
+    Config.Running = false
+    ClearPathLines()
+    task.delay(3, ClearJumpVisuals)
+    return not shouldStop()
+end
+
+function Sf:EnterVehicle(vehicle, timeout)
+    if not vehicle or not vehicle.PrimaryPart then return false end
+    timeout = timeout or 8
+    local st = tick()
+    while not Humanoid.Sit and tick() - st < timeout do
+        if shouldStop() then return false end
+        pcall(function()
+            for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+                if prompt:IsA('ProximityPrompt') then
+                    fireproximityprompt(prompt)
+                    task.wait(0.15)
+                end
+            end
+        end)
+        task.wait(0.2)
+    end
+    if Humanoid.Sit then
+        task.wait(0.3)
+        Sf:LockOwnVehicle(true)
+    end
+    return Humanoid.Sit
+end
+
+function Sf:ExitVehicle(timeout)
+    if not Humanoid.Sit then return true end
+    pcall(function() Net.get("exit_seat") end)
+    local st = tick()
+    while Humanoid.Sit and tick() - st < (timeout or 4) do
+        task.wait(0.15)
+    end
+    return not Humanoid.Sit
+end
+
+function Sf:DriveVehicleUnderground(model, destination, value, customSpeed, onArrive, customVehicleType, stayFlying)
+    if not model or not model.PrimaryPart then return false end
+    
+    local underground = Config.FishingUnderground
+    local undergroundDepth = math.max(10, tonumber(Config.FarmUndergroundDepth) or 55)
+    
+    if underground then
+        local surfaceDestination = destination
+        local travelDestination = destination + Vector3.new(0, -undergroundDepth, 0)
+        
+        local pivot = model:GetPivot()
+        model:PivotTo(CFrame.new(pivot.Position.X, travelDestination.Y, pivot.Position.Z) * pivot.Rotation)
+        task.wait(0.05)
+        
+        local startPos = model.PrimaryPart.Position
+        local delta = travelDestination - startPos
+        local dist = delta.Magnitude
+        
+        if dist > 0.05 then
+            local dir = delta.Unit
+            local speed = math.max(1, tonumber(customSpeed) or (Config.FishingTravelType == "Car" and Config.CarSpeed or Config.BikeSpeed))
+            local started = tick()
+            
+            while shouldContinue(value) and model and model.PrimaryPart do
+                task.wait()
+                if not Humanoid.Sit then
+                    if not Sf:EnterVehicle(model, 3) then break end
+                end
+                
+                local moved = math.min((tick() - started) * speed, dist)
+                local newPos = startPos + dir * moved
+                local rotation = CFrame.lookAt(newPos, newPos + dir)
+                
+                local vehicleTypeForWheelie = customVehicleType or Config.FishingTravelType
+                if Config.WheelieEnabled and (not Config.WheelieOnlyBike or vehicleTypeForWheelie == 'Bike') then
+                    rotation = rotation * CFrame.Angles(math.rad(math.clamp(Config.WheelieAngle, 0, 35)), 0, 0)
+                end
+                
+                model:PivotTo(rotation)
+                for _, part in pairs(model:GetDescendants()) do
+                    if part:IsA('BasePart') then
+                        part.AssemblyLinearVelocity = Vector3.zero
+                        part.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+                
+                if moved >= dist then break end
+            end
+        end
+        
+        if model and model.PrimaryPart then
+            if stayFlying then
+                local freezePos = Vector3.new(destination.X, destination.Y, destination.Z)
+                model:PivotTo(CFrame.new(freezePos) * model:GetPivot().Rotation)
+                for _, part in pairs(model:GetDescendants()) do
+                    if part:IsA('BasePart') then
+                        part.Anchored = true
+                        part.AssemblyLinearVelocity = Vector3.zero
+                        part.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+                ActiveFishingVehicle = model
+                print("[Freeze] Fahrzeug steht auf Angelposition Y="..freezePos.Y)
+            else
+                local restorePos
+                if shouldContinue(value) then
+                    restorePos = surfaceDestination
+                else
+                    local p = model.PrimaryPart.Position
+                    restorePos = Vector3.new(p.X, surfaceDestination.Y, p.Z)
+                end
+                model:PivotTo(CFrame.new(restorePos) * model:GetPivot().Rotation)
+                for _, part in pairs(model:GetDescendants()) do
+                    if part:IsA('BasePart') then
+                        part.AssemblyLinearVelocity = Vector3.zero
+                        part.AssemblyAngularVelocity = Vector3.zero
+                        part.Anchored = false
+                    end
+                end
+            end
+            if onArrive then
+                pcall(onArrive)
+            end
+        end
+        Config.Running = false
+        ClearPathLines()
+        return true
+    end
+    
+    return false
+end
+
+function Sf:PullVehicle()
+    local root = Character and Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    for _, vehicle in pairs(workspace.Vehicles:GetChildren()) do
+        if vehicle:IsA("Model") and vehicle:GetAttribute("OwnerUserId") == UserId then
+            local pp = vehicle.PrimaryPart or vehicle:FindFirstChildWhichIsA("BasePart")
+            if not pp then return end
+            local pos = root.CFrame * CFrame.new(0, 3, -12)
+            local rp = RaycastParams.new()
+            rp.FilterDescendantsInstances = getRaycastFilter({vehicle})
+            rp.FilterType = Enum.RaycastFilterType.Exclude
+            local ray = workspace:Raycast(pos.Position, Vector3.new(0, -200, 0), rp)
+            local groundY = ray and ray.Position.Y or 260
+            local offsetY = pp.Size.Y / 2
+            if ActiveFishingVehicle then
+                for _, part in pairs(ActiveFishingVehicle:GetDescendants()) do
+                    if part:IsA("BasePart") then part.Anchored = false end
+                end
+                ActiveFishingVehicle = nil
+            end
+            pcall(function() vehicle:SetPrimaryPartCFrame(CFrame.new(pos.X, groundY + offsetY, pos.Z) * vehicle:GetPivot().Rotation) end)
+            for _, part in pairs(vehicle:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
+                    part.Anchored = false
+                end
+            end
+        end
+    end
+end
+
+local function GetOrSpawnVehicle(vehicleType)
+    if vehicleType == "Walk" then return nil end
+    for _, v in pairs(workspace.Vehicles:GetChildren()) do
+        if v:GetAttribute('OwnerUserId') == UserId then return v end
+    end
+    local vName = Sf:GetCarFromType(vehicleType)
+    if not vName then
+        if vehicleType == "Bike" then Sf:BuyBikeCrate() else Sf:BuyCarCrate() end
+        task.wait(1.5)
+        return nil
+    end
+    local Checker = Sf:GetInfo(vName)
+    if Checker[2] and not Checker[4] and not Checker[5] then
+        Net.get("toggle_equip_item", tostring(Checker[3]))
+        task.wait(0.2)
+    end
+    task.wait(0.5)
+    for _, v in pairs(workspace.Vehicles:GetChildren()) do
+        if v:GetAttribute('OwnerUserId') == UserId then return v end
+    end
+    return nil
+end
+
+function Sf:GoToPosition(targetPos, timeout)
+    if Humanoid.Sit then
+        Sf:ExitVehicle(5)
+        task.wait(0.3)
+    end
+    BusyWalk = true
+    local attempts = 0
+    local reached = false
+    while distTo(targetPos) > 4 and attempts < 3 do
+        if shouldStop() then break end
+        local success = Sf:WalkTo(targetPos, timeout or 30)
+        if not success then
+            BusyWalk = false
+            return false
+        end
+        attempts = attempts + 1
+        task.wait(0.1)
+    end
+    BusyWalk = false
+    reached = distTo(targetPos) <= 8
+    return reached
+end
+
+function Sf:TravelTo(destination, value, stayFlying)
+    if not destination then return false end
+    if not Config.AutoFarmFishing and not BusyWalk then return false end
+    local dist = distTo(destination)
+    
+    if Config.FishingTravelType == "Walk" or dist <= 10 then
+        if Humanoid.Sit then
+            Sf:ExitVehicle(5)
+            task.wait(0.3)
+        end
+        return Sf:WalkTo(destination, 40)
+    end
+    
+    if not Config.AutoFarmFishing and not BusyWalk then return false end
+    
+    local vehicle = GetOrSpawnVehicle(Config.FishingTravelType)
+    if vehicle then
+        if not Humanoid.Sit then
+            Sf:PullVehicle()
+            task.wait(0.4)
+            if not Config.AutoFarmFishing then return false end
+            if not Sf:EnterVehicle(vehicle, 6) then
+                return Sf:WalkTo(destination, 40)
+            end
+        end
+        
+        local speed = (Config.FishingTravelType == "Car") and Config.CarSpeed or Config.BikeSpeed
+        local success = Sf:DriveVehicleUnderground(vehicle, destination, value, speed, nil, Config.FishingTravelType, stayFlying)
+        return success
+    else
+        return Sf:WalkTo(destination, 40)
+    end
+end
+
+local BIKE_CRATE_COST = 870
+function Sf:BuyBikeCrate()
+    local ok, err = pcall(function()
+        Status.State = "Buying Bike"
+        local bikeCrate = workspace.Map.Tiles.BurgerPlaceTile.UrbanCyclesAndSkates.Interior.Crates["Bike Crate"]
+        if not bikeCrate then return end
+        local touchPart = bikeCrate.Beacon.TouchPart
+
+        if self:GetMoney() < BIKE_CRATE_COST then
+            if self:ATMMoney() + self:GetMoney() < BIKE_CRATE_COST then return end
+            if not Sf:GoToPosition(POS.ATM, 30) then Sf:KillSelf() return end
+            task.wait(0.3)
+            local needed = BIKE_CRATE_COST - self:GetMoney()
+            if needed > 0 then
+                Net.get("transfer_funds", "bank", "hand", needed)
+                task.wait(0.5)
+            end
+        end
+
+        if not Sf:GoToPosition(POS.BikeBuy, 35) then Sf:KillSelf() return end
+        task.wait(0.3)
+        if not Sf:GoToPosition(touchPart.Position, 25) then Sf:KillSelf() return end
+        task.wait(0.3)
+
+        if distTo(touchPart.Position) > 12 then
+            RootPart:PivotTo(CFrame.new(touchPart.Position + Vector3.new(0, 3, 0)))
+            task.wait(0.5)
+        end
+
+        Net.get("open_crate", bikeCrate:WaitForChild("CrateOptions"):WaitForChild("Basic"), "money")
+        task.wait(1)
+        Status.State = "Bike bought"
+    end)
+    if not ok then warn("[BuyBike] Fehler:", err) end
+end
+
+local CAR_CRATE_COST = 2500
+function Sf:BuyCarCrate()
+    local ok, err = pcall(function()
+        Status.State = "Buying Car"
+        local carCrate = nil
+        local map = workspace:FindFirstChild("Map")
+        if map then
+            for _, desc in pairs(map:GetDescendants()) do
+                if desc.Name == "Car Crate" or desc.Name == "CarCrate" then carCrate = desc break end
+            end
+        end
+        if not carCrate then return end
+        local touchPart = carCrate:FindFirstChild("Beacon") and carCrate.Beacon:FindFirstChild("TouchPart") or carCrate:FindFirstChildWhichIsA("BasePart")
+
+        if self:GetMoney() < CAR_CRATE_COST then
+            if self:ATMMoney() + self:GetMoney() < CAR_CRATE_COST then return end
+            if not Sf:GoToPosition(POS.ATM, 30) then Sf:KillSelf() return end
+            task.wait(0.3)
+            local needed = CAR_CRATE_COST - self:GetMoney()
+            if needed > 0 then
+                Net.get("transfer_funds", "bank", "hand", needed)
+                task.wait(0.5)
+            end
+        end
+
+        if not Sf:GoToPosition(touchPart.Position, 30) then Sf:KillSelf() return end
+        task.wait(0.3)
+        if distTo(touchPart.Position) > 12 then
+            RootPart:PivotTo(CFrame.new(touchPart.Position + Vector3.new(0, 3, 0)))
+            task.wait(0.5)
+        end
+        Net.get("open_crate", carCrate:WaitForChild("CrateOptions"):WaitForChild("Basic"), "money")
+        task.wait(1)
+    end)
+    if not ok then warn("[BuyCar] Fehler:", err) end
+end
+
+local FishingRods = {
+    {Name = "FishingRodUltimate", Level = 60, Price = 5000},
+    {Name = "FishingRodAdvanced", Level = 35, Price = 2300},
+    {Name = "FishingRodPro", Level = 20, Price = 800},
+    {Name = "FishingRodRegular", Level = 1, Price = 100}
+}
+local FishingBaits = {
+    {Name = "PrawntecUltimate", Level = 45, Price = 45},
+    {Name = "PrawntecPro", Level = 30, Price = 40},
+    {Name = "PrawntecRegular", Level = 25, Price = 35},
+    {Name = "WormtecUltimate", Level = 15, Price = 30},
+    {Name = "WormtecPro", Level = 8, Price = 25},
+    {Name = "WormtecRegular", Level = 1, Price = 20}
+}
+
+function IsMinigameActive()
+    local sg = PlayerGui:FindFirstChild("SliderMinigame")
+    if not sg then return false end
+    local fr = sg:FindFirstChildOfClass("Frame")
+    return fr and fr.Visible or false
+end
+
+local function cleanupFishingBaseplate()
+    if fishingBaseplate and fishingBaseplate.Parent then fishingBaseplate:Destroy() end
+    fishingBaseplate = nil
+    if RootPart then RootPart.Anchored = false end
+end
+
+local function releaseFlyingVehicle()
+    if ActiveFishingVehicle then
+        for _, part in pairs(ActiveFishingVehicle:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+        ActiveFishingVehicle = nil
+    end
+end
+
+local function fullCleanup(skipVehicleExit)
+    Config.AutoFarmFishing = false
+    pcall(function() cleanupFishingBaseplate() end)
+    pcall(function() releaseFlyingVehicle() end)
+    pcall(function() Sf:ForceStop() end)
+    pcall(function() ClearPathLines() end)
+    pcall(function() ClearJumpVisuals() end)
+    if not skipVehicleExit then
+        pcall(function()
+            if Humanoid.Sit then
+                Net.get("exit_seat")
+                task.wait(0.3)
+            end
+        end)
+    end
+    pcall(function() Sf:TeleportUpIfNeeded() end)
+    BusyWalk = false
+    Config.StopWalking = false
+    Config.Running = false
+    Status.State = "Stopped"
+    Status.Fish = 0
+    print("[Fishing] STOP")
+end
+
+function SellAllFish()
+    if not Config.AutoFarmFishing then return false end
+    local fishToSell = CountFish()
+    if fishToSell == 0 then return true end
+    Status.State = "Selling ("..fishToSell.." Fische)"
+    print("[Sell] Verkaufe "..fishToSell.." Fische")
+    
+    if fishingBaseplate and fishingBaseplate.Parent then fishingBaseplate:Destroy() end
+    fishingBaseplate = nil
+    if RootPart then RootPart.Anchored = false end
+    
+    releaseFlyingVehicle()
+    
+    if Humanoid.Sit then
+        Sf:ExitVehicle(5)
+        task.wait(0.3)
+    end
+    
+    if not Config.AutoFarmFishing then return false end
+    Sf:TravelTo(POS.Sell, Config.AutoFarmFishing, false)
+    if not Config.AutoFarmFishing then return false end
+
+    local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
+    if sellBeacon then
+        local tp = sellBeacon:FindFirstChild("TouchPart")
+        if tp then
+            if not Config.AutoFarmFishing then return false end
+            Sf:TravelTo(tp.Position, Config.AutoFarmFishing, false)
+            if not Config.AutoFarmFishing then return false end
+            
+            if Humanoid.Sit then
+                Sf:ExitVehicle(5)
+                task.wait(0.3)
+            end
+            
+            local fishesToSell = {}
+            local Items2 = PlayerGui:FindFirstChild("Items")
+            if Items2 then
+                local H2 = Items2:FindFirstChild("ItemsHolder") and Items2.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+                if H2 then
+                    for _, v in pairs(H2:GetChildren()) do
+                        if v:GetAttribute("ItemType") == "fish" then table.insert(fishesToSell, v.Name) end
+                    end
+                end
+            end
+            for _, fUid in ipairs(fishesToSell) do
+                if not Config.AutoFarmFishing then return false end
+                pcall(function() Net.get("sell_item", tostring(fUid), 1) end)
+                task.wait(0.02)
+            end
+            task.wait(0.3)
+        end
+    end
+    return true
+end
+
+function BuyBaits(amount)
+    if not Config.AutoFarmFishing then return false end
+    Status.State = "Buying Baits"
+    releaseFlyingVehicle()
+    if Humanoid.Sit then
+        Sf:ExitVehicle(5)
+        task.wait(0.3)
+    end
+    Sf:TravelTo(POS.Shop, Config.AutoFarmFishing, false)
+    if not Config.AutoFarmFishing then return false end
+    if Humanoid.Sit then
+        Sf:ExitVehicle(5)
+        task.wait(0.3)
+    end
+    local realBaitName = Sf:ResolveBaitName()
+    print("[BuyBaits] Kaufe:", realBaitName, "x"..amount)
+    for i = 1, amount do
+        if not Config.AutoFarmFishing then break end
+        pcall(function() 
+            Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), realBaitName)
+        end)
+        task.wait(0.05)
+    end
+    task.wait(0.5)
+    return true
+end
+
+function FishingLoop()
+    if CountFish() > 0 then
+        SellAllFish()
+        if not Config.AutoFarmFishing then fullCleanup(true) return end
+    end
+
+    while Config.AutoFarmFishing do
+        if not Config.AutoFarmFishing then break end
+
+        if Sf:HandleDeathScreen() then
+            task.wait(1)
+            continue
+        end
+
+        pcall(function() Sf:LockOwnVehicle(false) end)
+
+        pcall(function()
+            Status.Fish = CountFish()
+            Status.Money = Sf:GetMoney()
+            Status.Bank = Sf:ATMMoney()
+            Status.Baits = Sf:CountBaits()
+        end)
+
+        local hasRod, rodUid, actualRodName, rodEquipped = false, nil, nil, false
+        local hasBait, baitUid = false, nil
+        local Items = PlayerGui:FindFirstChild("Items")
+        if Items then
+            local H = Items:FindFirstChild("ItemsHolder") and Items.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+            if H then
+                for _, v in pairs(H:GetChildren()) do
+                    if not Config.AutoFarmFishing then break end
+                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+                        local itemName = v:FindFirstChild("ItemName")
+                        if itemName and itemName.Text then
+                            local t = string.lower(itemName.Text)
+                            if not hasRod and string.find(t, "rod") then
+                                hasRod = true rodUid = v.Name actualRodName = itemName.Text
+                                local eq = v:FindFirstChild("ItemEquipped") rodEquipped = eq and eq.Visible or false
+                            end
+                            if not hasBait and (string.find(t, "wormtec") or string.find(t, "prawntec")) then
+                                hasBait = true baitUid = v.Name
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if not Config.AutoFarmFishing then break end
+
+        if not hasRod or not hasBait then
+            if fishingBaseplate then fishingBaseplate:Destroy() fishingBaseplate = nil end
+            releaseFlyingVehicle()
+            if Humanoid.Sit then
+                Sf:ExitVehicle(5)
+                task.wait(0.3)
+            end
+            if not Config.AutoFarmFishing then break end
+            local realRodName = Sf:ResolveRodName()
+            local realBaitName = Sf:ResolveBaitName()
+            local neededMoney = 0
+            if not hasRod then for _, rod in ipairs(FishingRods) do if rod.Name == realRodName then neededMoney = neededMoney + rod.Price break end end end
+            if not hasBait then for _, bait in ipairs(FishingBaits) do if bait.Name == realBaitName then neededMoney = neededMoney + (bait.Price * Config.FishingBaitAmount) break end end end
+            local totalMoney = Sf:GetMoney() + Sf:ATMMoney()
+            if totalMoney < neededMoney then
+                task.wait(5)
+                continue
+            end
+            while Sf:GetMoney() < neededMoney and Config.AutoFarmFishing do
+                if Humanoid.Sit then Sf:ExitVehicle(5) task.wait(0.3) end
+                Sf:TravelTo(POS.ATM, Config.AutoFarmFishing, false)
+                if not Config.AutoFarmFishing then break end
+                local need = neededMoney - Sf:GetMoney()
+                if need > 0 and Sf:ATMMoney() >= need then
+                    Net.get("transfer_funds", "bank", "hand", need)
+                    task.wait(0.3)
+                else break end
+            end
+            if not Config.AutoFarmFishing then break end
+            if Humanoid.Sit then Sf:ExitVehicle(5) task.wait(0.3) end
+            Sf:TravelTo(POS.Shop, Config.AutoFarmFishing, false)
+            if not Config.AutoFarmFishing then break end
+            if Humanoid.Sit then Sf:ExitVehicle(5) task.wait(0.3) end
+            if not hasRod then 
+                Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), realRodName) 
+                task.wait(0.15) 
+            end
+            if not Config.AutoFarmFishing then break end
+            if not hasBait then
+                for i = 1, Config.FishingBaitAmount do
+                    if not Config.AutoFarmFishing then break end
+                    Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), realBaitName)
+                    task.wait(0.05)
+                end
+            end
+            task.wait(0.5)
+            continue
+        end
+
+        local baitCount = Sf:CountBaits()
+        if baitCount <= 0 then
+            releaseFlyingVehicle()
+            if Humanoid.Sit then Sf:ExitVehicle(5) task.wait(0.3) end
+            if CountFish() > 0 then
+                SellAllFish()
+                if not Config.AutoFarmFishing then break end
+            end
+            BuyBaits(Config.FishingBaitAmount)
+            if not Config.AutoFarmFishing then break end
+            continue
+        end
+
+        local level = Sf:GetLevel()
+        local fishingSpot, throwPos, requiredLevel = Sf:GetFishingSpot()
+        Status.State = "Traveling (Lvl " .. requiredLevel .. ")"
+        
+        local useFlying = (Config.FishingTravelType ~= "Walk")
+        local travelSuccess = Sf:TravelTo(fishingSpot, Config.AutoFarmFishing, useFlying)
+        if not Config.AutoFarmFishing then break end
+        if not travelSuccess then 
+            if fishingBaseplate then fishingBaseplate:Destroy() fishingBaseplate = nil end
+            continue 
+        end
+
+        if useFlying then
+            print("Done - Fahrzeug steht auf Angelposition")
+            task.wait(0.5)
+        else
+            if Humanoid.Sit then Sf:ExitVehicle(4) task.wait(0.2) end
+            if not Config.AutoFarmFishing then break end
+            if fishingBaseplate and fishingBaseplate.Parent then fishingBaseplate:Destroy() end
+            
+            if Config.FishingTravelType == "Walk" and level < 10 then
+                RootPart.CFrame = CFrame.new(RootPart.Position.X, 260, RootPart.Position.Z)
+                task.wait(0.4)
+                RootPart.CFrame = CFrame.new(POS.FishLowLevelWalkDrop)
+                task.wait(0.4)
+            else
+                RootPart.CFrame = RootPart.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.1)
+            end
+            
+            fishingBaseplate = Instance.new("Part")
+            fishingBaseplate.Name = "FishingBaseplate"
+            fishingBaseplate.Size = Vector3.new(10, 1, 10)
+            fishingBaseplate.Anchored = true
+            fishingBaseplate.CanCollide = true
+            fishingBaseplate.Position = RootPart.Position - Vector3.new(0, 3, 0)
+            fishingBaseplate.Parent = workspace
+            task.wait(0.1)
+            RootPart.Anchored = true
+            print("Done - Baseplate")
+            task.wait(0.5)
+        end
+
+        if not Config.AutoFarmFishing then break end
+
+        if not rodEquipped then
+            Net.get("toggle_equip_item", tostring(rodUid))
+            task.wait(0.3)
+        end
+        
+        local rodInHand = Sf:EnsureRodEquipped(actualRodName)
+        if not rodInHand then
+            task.wait(1)
+            rodInHand = Sf:EnsureRodEquipped(actualRodName)
+        end
+        
+        Net.get("equip_ammo_on_item", rodUid, baitUid)
+        task.wait(0.3)
+
+        Status.State = "Fishing (Lvl " .. requiredLevel .. ")"
+        local maxIterations = 500
+        local iteration = 0
+        while Config.AutoFarmFishing and CountFish() < 15 and iteration < maxIterations do
+            iteration = iteration + 1
+            if not Config.AutoFarmFishing then break end
+            Status.Fish = CountFish()
+            Status.Baits = Sf:CountBaits()
+
+            if Sf:HandleDeathScreen() then
+                task.wait(1)
+                break
+            end
+
+            if Sf:CountBaits() <= 0 then
+                break
+            end
+
+            if IsMinigameActive() then
+                task.wait(0.3)
+                continue
+            end
+
+            local char = Client.Character
+            if not char then break end
+            local rodTool = char:FindFirstChild(actualRodName)
+            if not rodTool then
+                rodTool = Sf:EnsureRodEquipped(actualRodName)
+                if not rodTool then
+                    task.wait(0.5)
+                    continue
+                end
+            end
+
+            if rodTool then
+                if IsMinigameActive() then
+                    task.wait(0.3)
+                    continue
+                end
+
+                local throwOk = pcall(function()
+                    Net.get("throw_rod", rodTool, throwPos)
+                end)
+                if not throwOk then task.wait(0.5) continue end
+
+                local timeout = tick() + 25
+                local minigameStarted = false
+                while Config.AutoFarmFishing and tick() < timeout do
+                    task.wait(0.05)
+                    if IsMinigameActive() then
+                        minigameStarted = true
+                        break
+                    end
+                end
+
+                if minigameStarted then
+                    while Config.AutoFarmFishing and IsMinigameActive() do
+                        task.wait(0.1)
+                    end
+                    task.wait(0.05)
+                    pcall(function() Net.send("reel_ended", rodTool, true) end)
+                    task.wait(0.3)
+                end
+
+                if Sf:CountBaits() > 0 and rodUid and baitUid then
+                    Net.get("equip_ammo_on_item", rodUid, baitUid)
+                    task.wait(0.15)
+                end
+
+                task.wait(0.3)
+            else
+                task.wait(1)
+            end
+        end
+
+        if not Config.AutoFarmFishing then break end
+
+        local currentFish = CountFish()
+        local shouldSell = currentFish >= 15 or Sf:CountBaits() <= 0
+        if shouldSell and currentFish > 0 then
+            SellAllFish()
+            if not Config.AutoFarmFishing then break end
+        end
+
+        if Sf:CountBaits() <= 0 then
+            BuyBaits(Config.FishingBaitAmount)
+            if not Config.AutoFarmFishing then break end
+        end
+        Status.State = "Idle"
+    end
+    fullCleanup(true)
+end
+
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Window = WindUI:CreateWindow({
+    Title = "🎣 Fishing Farm v28",
+    Icon = "rbxassetid://1481738249",
+    Author = "Fishing Only",
+    Folder = "FishingFarm",
+    Size = UDim2.fromOffset(500, 620),
+    MinSize = Vector2.new(420, 420),
+    MaxSize = Vector2.new(720, 750),
+    Transparent = true, Theme = "Dark", Resizable = true,
+    SideBarWidth = 180, BackgroundImageTransparency = 0.42,
+    HideSearchBar = true, ScrollBarEnabled = false,
+    User = { Enabled = true, Anonymous = false, Name = LocalPlayer.Name,
+        Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
+        Callback = function() end },
+})
+local FishingTab = Window:Tab({ Title = '🎣 Fishing', Icon = 'fishing-rod' })
+
+FishingTab:Section({ Title = '📊 Live Status', Icon = 'activity' })
+local StatusLabel = FishingTab:Button({ Title = "Status", Desc = "Idle" })
+local FishLabel = FishingTab:Button({ Title = "🐟 Fische", Desc = "0 / 15" })
+local BaitsLabel = FishingTab:Button({ Title = "🪱 Baits", Desc = "0" })
+local MoneyLabel = FishingTab:Button({ Title = "💸 Hand", Desc = "$0" })
+local BankLabel = FishingTab:Button({ Title = "🏦 Bank", Desc = "$0" })
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            StatusLabel:SetDesc(tostring(Status.State or "Idle"))
+            FishLabel:SetDesc(tostring(Status.Fish or 0) .. " / 15")
+            BaitsLabel:SetDesc(tostring(Status.Baits or 0))
+            MoneyLabel:SetDesc("$" .. tostring(Status.Money or 0))
+            BankLabel:SetDesc("$" .. tostring(Status.Bank or 0))
+        end)
+    end
+end)
+
+FishingTab:Section({ Title = '🎯 Auto Farm', Icon = 'target' })
+FishingTab:Toggle({ 
+    Title = "☑️ Auto Farm Fishing", 
+    Icon = "check", 
+    Type = "Checkbox", 
+    Value = false, 
+    Callback = function(Value)
+        if Value then
+            fullCleanup(true)
+            task.wait(0.3)
+            Config.AutoFarmFishing = true
+            Status.State = "Starting"
+            FishingThread = task.spawn(FishingLoop)
+        else
+            Config.AutoFarmFishing = false
+            BusyWalk = false
+            Config.StopWalking = true
+            if FishingThread then
+                pcall(task.cancel, FishingThread)
+                FishingThread = nil
+            end
+            task.wait(0.05)
+            Config.StopWalking = false
+            fullCleanup(true)
+            print("[Fishing] SOFORT GESTOPPT - Fahrzeug bleibt bestehen")
+        end
+    end 
+})
+FishingTab:Dropdown({ Title = "🚗 Travel Type", Values = {"Walk", "Bike", "Car"}, Value = "Bike", Callback = function(Value) Config.FishingTravelType = Value end })
+
+FishingTab:Section({ Title = '⚡ Geschwindigkeit (Live)', Icon = 'settings' })
+FishingTab:Slider({ Title = "🚶 Walk Speed", Step = 1, Value = { Min = 10, Max = 60, Default = 25 }, Callback = function(Value) Config.WalkingSpeed = Value end })
+FishingTab:Slider({ Title = "🚲 Bike Speed", Step = 1, Value = { Min = 10, Max = 100, Default = 25 }, Callback = function(Value) Config.BikeSpeed = Value end })
+FishingTab:Slider({ Title = "🚗 Car Speed", Step = 1, Value = { Min = 10, Max = 150, Default = 45 }, Callback = function(Value) Config.CarSpeed = Value end })
+
+FishingTab:Section({ Title = '🚗 Fahrzeug Tween', Icon = 'car' })
+FishingTab:Toggle({ Title = "☑️ Underground Tween", Desc = "Fährt unter der Map", Icon = "check", Type = "Checkbox", Value = true, Callback = function(Value) Config.FishingUnderground = Value end })
+FishingTab:Slider({ Title = "📏 Underground Depth", Step = 1, Value = { Min = 10, Max = 150, Default = 55 }, Callback = function(Value) Config.FarmUndergroundDepth = Value end })
+FishingTab:Toggle({ Title = "☑️ Wheelie (Bike)", Desc = "Bike hebt Vorderrad an", Icon = "check", Type = "Checkbox", Value = true, Callback = function(Value) Config.WheelieEnabled = Value end })
+FishingTab:Slider({ Title = "📐 Wheelie Angle", Step = 1, Value = { Min = 0, Max = 35, Default = 15 }, Callback = function(Value) Config.WheelieAngle = Value end })
+
+FishingTab:Section({ Title = '🎣 Angel & Köder', Icon = 'fish' })
+FishingTab:Dropdown({ Title = "🎣 Select Rod", Values = {"Smart Select", "FishingRodUltimate", "FishingRodAdvanced", "FishingRodPro", "FishingRodRegular"}, Value = "Smart Select", Callback = function(Value) Config.FishingRod = Value end })
+FishingTab:Dropdown({ Title = "🪱 Select Bait", Values = {"Smart Select", "PrawntecUltimate", "PrawntecPro", "PrawntecRegular", "WormtecUltimate", "WormtecPro", "WormtecRegular"}, Value = "Smart Select", Callback = function(Value) Config.FishingWormtec = Value end })
+FishingTab:Slider({ Title = "🔢 Bait Purchase Amount", Step = 1, Value = { Min = 1, Max = 50, Default = 15 }, Callback = function(Value) Config.FishingBaitAmount = Value end })
+
+FishingTab:Section({ Title = '🛠️ Manuell', Icon = 'wrench' })
+FishingTab:Button({ Title = "🛒 Buy Bike (Walk)", Icon = "shopping-cart", Callback = function() task.spawn(function() Sf:BuyBikeCrate() end) end })
+FishingTab:Button({ Title = "🛒 Buy Car (Walk)", Icon = "shopping-cart", Callback = function() task.spawn(function() Sf:BuyCarCrate() end) end })
+FishingTab:Button({ Title = "💰 Sell All Fish", Icon = "dollar-sign", Callback = function() task.spawn(function() SellAllFish() end) end })
+FishingTab:Button({ Title = "🔒 Lock Vehicle", Icon = "lock", Callback = function() task.spawn(function() Sf:LockOwnVehicle(true) end) end })
+
+print("Fishing Farm v28 geladen.")
